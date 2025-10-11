@@ -1,0 +1,76 @@
+/* ===== General ===== */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f8f9fa;
+    margin: 0;
+    padding: 0 20px;
+}
+
+h2 {
+    color: #333;
+}
+
+/* ===== Navbar ===== */
+nav {
+    background-color: #4CAF50;
+    padding: 10px 20px;
+    border-radius: 5px;
+}
+
+nav a {
+    color: white;
+    text-decoration: none;
+    margin-right: 15px;
+    font-weight: bold;
+}
+
+nav a:hover {
+    text-decoration: underline;
+}
+
+/* ===== Forms ===== */
+form input,
+form textarea,
+form select,
+form button {
+    width: 100%;
+    padding: 10px;
+    margin: 5px 0 15px 0;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box;
+}
+
+form button {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+form button:hover {
+    background-color: #45a049;
+}
+
+/* ===== Lists ===== */
+ul {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+ul li {
+    background-color: white;
+    margin-bottom: 8px;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+}
+
+/* ===== Footer ===== */
+footer {
+    text-align: center;
+    margin-top: 30px;
+    padding: 10px;
+    color: #555;
+}
