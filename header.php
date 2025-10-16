@@ -9,7 +9,7 @@ $navItems = [
     'Sign Up' => 'index.php?page=signup',
     'Login' => 'index.php?page=login',
     'Adopt Pet' => 'index.php?page=adopt_pet',
-    'Add Pet' => 'index.php?page=add_pet',
+    // 'Add Pet' => 'index.php?page=add_pet',
     'Pet Tips' => 'index.php?page=pet_tips',
     'Appointments' => 'index.php?page=appointments',
     'Pet Shop' => 'index.php?page=pet_shop',
