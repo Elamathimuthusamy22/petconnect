@@ -1,34 +1,57 @@
 <?php
 session_start();
 include 'db_connect.php';
+
+$loggedIn = isset($_SESSION['user_id']); // check if user is logged in
+$userId = $loggedIn ? $_SESSION['user_id'] : null;
+
 $collection = $db->petshop;
+$cartCollection = $db->cart;
 
-// Check if user is logged in
-$loggedIn = isset($_SESSION['user_id']);
-
-// Initialize cart in session
-if(!isset($_SESSION['cart'])) $_SESSION['cart'] = [];
-
-// Add to cart
-if($loggedIn && isset($_POST['add_cart'])){
-    $itemId = $_POST['item_id'];
-    if(!in_array($itemId, $_SESSION['cart'])){
-        $_SESSION['cart'][] = $itemId;
+// Handle Add/Remove via AJAX
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!$loggedIn) {
+        echo json_encode(['success' => false, 'message' => 'Login required']);
+        exit;
     }
-}
 
-// Remove from cart
-if($loggedIn && isset($_POST['remove_cart'])){
-    $itemId = $_POST['item_id'];
-    if(($key = array_search($itemId, $_SESSION['cart'])) !== false){
-        unset($_SESSION['cart'][$key]);
-        $_SESSION['cart'] = array_values($_SESSION['cart']); // reindex array
+    $itemId = $_POST['item_id'] ?? null;
+    if (!$itemId) exit;
+
+    // Add to cart
+    if (isset($_POST['action']) && $_POST['action'] === 'add') {
+        $cartCollection->updateOne(
+            ['user_id' => $userId, 'items.item_id' => ['$ne' => $itemId]],
+            ['$push' => ['items' => ['item_id' => $itemId, 'added_at' => new MongoDB\BSON\UTCDateTime()]]],
+            ['upsert' => true]
+        );
+        echo json_encode(['success' => true, 'action' => 'added']);
+        exit;
+    }
+
+    // Remove from cart
+    if (isset($_POST['action']) && $_POST['action'] === 'remove') {
+        $cartCollection->updateOne(
+            ['user_id' => $userId],
+            ['$pull' => ['items' => ['item_id' => $itemId]]]
+        );
+        echo json_encode(['success' => true, 'action' => 'removed']);
+        exit;
     }
 }
 
 // Fetch all items
 $items = $collection->find();
 $itemsArray = iterator_to_array($items);
+
+// Fetch current user's cart
+$userCart = [];
+if ($loggedIn) {
+    $cartDoc = $cartCollection->findOne(['user_id' => $userId]);
+    if ($cartDoc && isset($cartDoc['items'])) {
+        $userCart = array_column($cartDoc['items'], 'item_id');
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -53,15 +76,14 @@ h2{text-align:center;color:#2d3436;}
 <body>
 
 <h2>Pet Shop</h2>
-
-<div class="cart-count"><?php echo count($_SESSION['cart']); ?></div>
+<div class="cart-count" id="cartCount"><?php echo count($userCart); ?></div>
 
 <div class="items-grid">
     <?php foreach($itemsArray as $item): 
         $itemId = (string)$item['_id'];
-        $inCart = in_array($itemId, $_SESSION['cart']);
+        $inCart = in_array($itemId, $userCart);
     ?>
-        <div class="item-card">
+        <div class="item-card" data-id="<?php echo $itemId; ?>">
             <?php 
             if(isset($item['image']) && $item['image'] instanceof MongoDB\BSON\Binary){
                 $imgType = $item['image_type'] ?? 'image/jpeg';
@@ -78,14 +100,8 @@ h2{text-align:center;color:#2d3436;}
                 <div class="item-qty">Qty: <?php echo $item['quantity']; ?></div>
 
                 <?php if($loggedIn): ?>
-                    <form method="POST" style="display:inline-block;">
-                        <input type="hidden" name="item_id" value="<?php echo $itemId; ?>">
-                        <?php if($inCart): ?>
-                            <button type="submit" name="remove_cart" class="remove-cart-btn">Remove from Cart</button>
-                        <?php else: ?>
-                            <button type="submit" name="add_cart" class="add-cart-btn">Add to Cart</button>
-                        <?php endif; ?>
-                    </form>
+                    <button class="add-cart-btn" <?php if($inCart) echo 'style="display:none;"'; ?>>Add to Cart</button>
+                    <button class="remove-cart-btn" <?php if(!$inCart) echo 'style="display:none;"'; ?>>Remove from Cart</button>
                 <?php else: ?>
                     <button class="add-cart-btn" disabled>Add to Cart (Login Required)</button>
                 <?php endif; ?>
@@ -93,6 +109,52 @@ h2{text-align:center;color:#2d3436;}
         </div>
     <?php endforeach; ?>
 </div>
+
+<script>
+const loggedIn = <?php echo $loggedIn ? 'true' : 'false'; ?>;
+
+if(loggedIn){
+    const cartCount = document.getElementById('cartCount');
+
+    document.querySelectorAll('.item-card').forEach(card => {
+        const addBtn = card.querySelector('.add-cart-btn');
+        const removeBtn = card.querySelector('.remove-cart-btn');
+        const itemId = card.getAttribute('data-id');
+
+        addBtn && addBtn.addEventListener('click', () => {
+            fetch('petshop.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: `item_id=${itemId}&action=add`
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.success){
+                    addBtn.style.display = 'none';
+                    removeBtn.style.display = 'inline-block';
+                    cartCount.textContent = parseInt(cartCount.textContent) + 1;
+                }
+            });
+        });
+
+        removeBtn && removeBtn.addEventListener('click', () => {
+            fetch('petshop.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: `item_id=${itemId}&action=remove`
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.success){
+                    removeBtn.style.display = 'none';
+                    addBtn.style.display = 'inline-block';
+                    cartCount.textContent = parseInt(cartCount.textContent) - 1;
+                }
+            });
+        });
+    });
+}
+</script>
 
 </body>
 </html>

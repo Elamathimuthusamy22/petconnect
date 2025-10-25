@@ -1,29 +1,48 @@
-
 <?php
-session_start(); // start session to check login
-
+session_start();
 include 'db_connect.php';
-$collection = $db->pets;
 
-// Check if user is logged in
-$loggedIn = isset($_SESSION['user_id']); // assuming you store user ID in session
-?>
-<?php
-// available_pets.php
-include 'db_connect.php';
 $collection = $db->pets;
+$loggedIn = isset($_SESSION['user_id']); // check login
 
+// Handle adoption request via AJAX
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['adopt_id'])) {
+    if (!$loggedIn) {
+        echo json_encode(['success' => false, 'message' => 'You must be logged in to adopt']);
+        exit;
+    }
+
     $petId = new MongoDB\BSON\ObjectId($_POST['adopt_id']);
-    $collection->updateOne(
-        ['_id' => $petId],
-        ['$set' => ['status' => 'pending']]
+    $userId = $_SESSION['user_id'];
+
+    // Update pet status and store adopter
+    $result = $collection->updateOne(
+        ['_id' => $petId, 'status' => 'available'], // only if available
+        ['$set' => [
+            'status' => 'pending',
+            'adopter_id' => $userId,
+            'adopted_at' => new MongoDB\BSON\UTCDateTime()
+        ]]
     );
-    echo json_encode(['success' => true]);
+
+    if ($result->getModifiedCount() > 0) {
+        // Optional: add to adoptions collection
+        $db->adoptions->insertOne([
+            'user_id' => $userId,
+            'pet_id' => $petId,
+            'status' => 'pending',
+            'requested_at' => new MongoDB\BSON\UTCDateTime()
+        ]);
+
+        echo json_encode(['success' => true]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Pet already adopted or pending']);
+    }
     exit;
 }
 
-$pets = $collection->find();
+// Fetch all pets
+$pets = $collection->find([], ['sort' => ['_id' => -1]]);
 $petsArray = iterator_to_array($pets);
 
 // Stats
@@ -34,18 +53,15 @@ foreach ($petsArray as $pet) {
     $petTypes[$type] = ($petTypes[$type] ?? 0) + 1;
 }
 $uniqueTypes = count($petTypes);
-$mostPopular = 'N/A';
-if (!empty($petTypes)) {
-    arsort($petTypes);
-    $mostPopular = array_key_first($petTypes);
-}
+$mostPopular = !empty($petTypes) ? array_key_first($petTypes) : 'N/A';
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Available Pets</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Available Pets</title>
 <style>
 body{font-family:Arial;margin:0;padding:40px;background:#fafafa}
 .container{max-width:1200px;margin:auto}
@@ -129,18 +145,18 @@ transition:0.3s;position:relative}
                 echo "</div>";
                 echo "<div class='pet-date'>Added on $date</div>";
 
-                // Adopt button logic
+                // Adopt button
                 if ($status === 'pending') {
-    echo "<button class='adopt-btn' disabled>Pending Approval</button>";
-} elseif ($status === 'adopted') {
-    echo "<button class='adopt-btn' disabled>Adopted</button>";
-} else {
-    if($loggedIn){
-        echo "<button class='adopt-btn' onclick='adoptPet(\"$id\", this)'>Adopt</button>";
-    } else {
-        echo "<button class='adopt-btn' onclick='alert(\"Please login/signup to adopt a pet.\")'>Adopt</button>";
-    }
-}
+                    echo "<button class='adopt-btn' disabled>Pending Approval</button>";
+                } elseif ($status === 'adopted') {
+                    echo "<button class='adopt-btn' disabled>Adopted</button>";
+                } else {
+                    if ($loggedIn) {
+                        echo "<button class='adopt-btn' onclick='adoptPet(\"$id\", this)'>Adopt</button>";
+                    } else {
+                        echo "<button class='adopt-btn' onclick='alert(\"Please login/signup to adopt a pet.\")'>Adopt</button>";
+                    }
+                }
 
                 echo "</div></div>";
             }
@@ -155,7 +171,7 @@ transition:0.3s;position:relative}
 function adoptPet(petId, btn){
     if(!confirm("Do you want to adopt this pet?")) return;
     btn.disabled = true;
-    fetch("adopt_pet.php", {
+    fetch("available_pets.php", {
         method: "POST",
         headers: {"Content-Type": "application/x-www-form-urlencoded"},
         body: "adopt_id=" + petId
@@ -166,7 +182,7 @@ function adoptPet(petId, btn){
             btn.textContent = "Pending Approval";
             btn.style.background = "#ccc";
         } else {
-            alert("Error adopting pet.");
+            alert(data.message || "Error adopting pet.");
             btn.disabled = false;
         }
     })

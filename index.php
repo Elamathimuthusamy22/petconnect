@@ -8,7 +8,7 @@ $page = isset($_GET['page']) ? $_GET['page'] : 'home';
 // Allowed pages
 $allowedPages = [
     'home', 'signup', 'login', 'adopt_pet',  
-    'pet_tips', 'appointments', 'pet_shop', 'lost_found', 
+     'appointments', 'pet_shop', 'lost_found', 'logout',
     'feedback', 'dashboard'
 ];
 
