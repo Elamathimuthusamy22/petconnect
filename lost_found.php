@@ -25,11 +25,11 @@ if(isset($_POST['submit'])){
 
             $collection->insertOne([
                 'user_id' => $_SESSION['user_id'],
-                'user_name' => $_SESSION['user_name'],
+                'user_name' => $_SESSION['user_name'] ?? $_SESSION['user'] ?? 'User',
                 'type' => $type,
                 'item_name' => $item_name,
                 'description' => $description,
-                'status' => 'Pending',
+                'status' => 'Pending Approval', // initial status
                 'admin_note' => null,
                 'created_at' => new MongoDB\BSON\UTCDateTime()
             ]);
@@ -44,6 +44,7 @@ if(isset($_POST['submit'])){
 // Fetch user submissions
 $items = $collection->find(['user_id' => $_SESSION['user_id'] ?? ''], ['sort' => ['_id' => -1]]);
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -59,8 +60,10 @@ button:hover { background: #ff4d94; }
 .success-message { background: #00cec9; color: white; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; font-weight: 600; }
 .error-message { background: #d63031; color: white; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; font-weight: 600; }
 table { width: 100%; border-collapse: collapse; margin-top: 30px; }
-th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+th, td { border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: middle; }
 th { background: #f8f8f8; }
+a { color: #ff69b4; text-decoration: none; }
+a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -94,14 +97,15 @@ th { background: #f8f8f8; }
 
     <h3 style="margin-top:40px;">Your Submissions</h3>
     <table>
-        <tr><th>Type</th><th>Item</th><th>Description</th><th>Status</th><th>Admin Note</th></tr>
+        <tr><th>Type</th><th>Item</th><th>Description</th><th>Status</th></tr>
         <?php foreach($items as $i): ?>
         <tr>
             <td><?= htmlspecialchars($i['type']) ?></td>
             <td><?= htmlspecialchars($i['item_name']) ?></td>
             <td><?= htmlspecialchars($i['description']) ?></td>
-            <td><?= $i['status'] ?></td>
-            <td><?= $i['admin_note'] ?? 'Pending' ?></td>
+            <td>
+                <?= htmlspecialchars($i['status']) ?>
+            </td>
         </tr>
         <?php endforeach; ?>
     </table>

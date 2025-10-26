@@ -12,7 +12,7 @@ if (!$user_id) {
 }
 
 // --- Initialize arrays ---
-$appointments = $feedbacks = $pets = $lostReports = $petshopItems = [];
+$appointments = $feedbacks = $pets = $lostReports = $petshopItems = $adoptedPets = [];
 
 // --- Fetch Appointments ---
 try {
@@ -30,12 +30,21 @@ try {
     ));
 } catch (Exception $e) {}
 
-// --- Fetch Pets added by user ---
+// // --- Fetch Pets added by user ---
+// try {
+//     $pets = iterator_to_array($db->pets->find(
+//         ['created_by' => $user_id],
+//         ['sort' => ['created_at' => -1]]
+//     ));
+// } catch (Exception $e) {}
+
+// --- Fetch Adopted Pets by user ---
 try {
-    $pets = iterator_to_array($db->pets->find(
-        ['created_by' => $user_id],
-        ['sort' => ['created_at' => -1]]
-    ));
+    $adoptedPetsCursor = $db->pets->find(
+        ['adopter_id' => $user_id, 'status' => 'adopted'],
+        ['sort' => ['adopted_at' => -1]]
+    );
+    $adoptedPets = iterator_to_array($adoptedPetsCursor);
 } catch (Exception $e) {}
 
 // --- Fetch Lost & Found Reports ---
@@ -46,13 +55,20 @@ try {
     ));
 } catch (Exception $e) {}
 
-// --- Fetch Petshop Cart items (MongoDB user-specific) ---
+// --- Fetch Petshop Cart items ---
 try {
     $cartDoc = $db->cart->findOne(['user_id' => $user_id]);
     if ($cartDoc && isset($cartDoc['items'])) {
-        $itemIds = array_map(fn($i) => new MongoDB\BSON\ObjectId($i['item_id']), $cartDoc['items']);
+        $itemsArray = (array)$cartDoc['items'];
+        $itemIds = array_map(function($i) {
+            $i = (array)$i;
+            return new MongoDB\BSON\ObjectId($i['item_id']);
+        }, $itemsArray);
+
         if (!empty($itemIds)) {
-            $petshopItems = iterator_to_array($db->petshop->find(['_id' => ['$in' => $itemIds]]));
+            $petshopItems = iterator_to_array($db->petshop->find([
+                '_id' => ['$in' => $itemIds]
+            ]));
         }
     }
 } catch (Exception $e) {}
@@ -75,8 +91,9 @@ function fmtDate($d) {
         $summary = [
             ['title'=>'Appointments','count'=>count($appointments),'desc'=>'Upcoming and past appointments you created'],
             ['title'=>'Feedbacks','count'=>count($feedbacks),'desc'=>'Feedback messages you submitted'],
-            ['title'=>'Pets Added','count'=>count($pets),'desc'=>'Pets recorded with your account'],
-            ['title'=>'Cart Items','count'=>count($petshopItems),'desc'=>'Items currently in your pet shop cart']
+           
+            ['title'=>'Cart Items','count'=>count($petshopItems),'desc'=>'Items currently in your pet shop cart'],
+            ['title'=>'Adopted Pets','count'=>count($adoptedPets),'desc'=>'Pets you have successfully adopted']
         ];
         foreach($summary as $s):
         ?>
@@ -89,7 +106,7 @@ function fmtDate($d) {
     </div>
 
     <!-- Recent Activities -->
-    <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-bottom:20px;">
         <!-- Appointments -->
         <div style="background:#fff;padding:18px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,0.06);">
             <h2 style="margin-top:0;color:#2d3436;">Recent Appointments</h2>
@@ -130,5 +147,24 @@ function fmtDate($d) {
                 </ul>
             <?php endif; ?>
         </div>
+    </div>
+
+    <!-- Adopted Pets -->
+    <div style="background:#fff;padding:18px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,0.06);margin-bottom:20px;">
+        <h2 style="margin-top:0;color:#2d3436;">Adopted Pets</h2>
+        <?php if(empty($adoptedPets)): ?>
+            <p style="color:#636e72;">You have not adopted any pets yet. <a href="index.php?page=adopt_pet">View available pets</a>.</p>
+        <?php else: ?>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:15px;">
+            <?php foreach($adoptedPets as $p): ?>
+                <div style="background:#f8f8f8;padding:12px;border-radius:12px;text-align:center;box-shadow:0 4px 15px rgba(0,0,0,0.05);">
+                    <div style="font-weight:700;color:#2d3436;font-size:18px;"><?php echo htmlspecialchars($p['name']); ?></div>
+                    <div style="color:#636e72;font-size:14px;margin-top:4px;"><?php echo htmlspecialchars($p['type'] ?? 'Pet'); ?></div>
+                    <div style="color:#ff6348;font-weight:600;margin-top:6px;">Adopted</div>
+                    <div style="color:#8b9498;font-size:12px;margin-top:4px;">On: <?php echo fmtDate($p['adopted_at'] ?? null); ?></div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
     </div>
 </div>

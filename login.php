@@ -6,9 +6,6 @@ session_start();
 // Include database connection
 include 'db_connect.php';
 
-// Include header AFTER starting session
-// include 'header.php';
-
 // Initialize error message
 $errorMessage = '';
 
@@ -20,7 +17,10 @@ if (isset($_POST['login'])) {
     $user = $collection->findOne(['email' => $email]);
 
     if ($user && password_verify($password, $user['password'])) {
-        $_SESSION['user'] = $user['name'];
+        // Set the session variables exactly as other pages expect
+        $_SESSION['user_id'] = (string)$user['_id'];   // important for other pages
+        $_SESSION['user_name'] = $user['name'];        // optional for display
+
         header("Location: index.php?page=dashboard");
         exit();
     } else {
@@ -29,7 +29,7 @@ if (isset($_POST['login'])) {
 }
 ?>
 
-<!-- CSS and HTML UI (unchanged) -->
+<!-- CSS and HTML UI -->
 <style>
     .page-container { max-width:600px; margin:0 auto; padding:20px; }
     .page-content { background:white; padding:40px; border-radius:20px; box-shadow:0 10px 30px rgba(0,0,0,0.1); margin-top:20px; }
